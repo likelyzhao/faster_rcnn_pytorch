@@ -6,25 +6,25 @@
 # --------------------------------------------------------
 
 import os
-from datasets.imdb import imdb
-import datasets.ds_utils as ds_utils
+from .imdb import imdb
+import ds_utils
 import xml.etree.ElementTree as ET
 import numpy as np
 import scipy.sparse
 import scipy.io as sio
-import utils.cython_bbox
+#import ..utils.cython_bbox
 import cPickle
 import subprocess
 import uuid
 from imagenet_eval import ILSVRC_eval
-from fast_rcnn.config import cfg
+from ..fast_rcnn.config import cfg
 
 class imagenet(imdb):
     def __init__(self, image_set, year, ILSVRC_path= None):
         imdb.__init__(self, 'ILSVRC_' + year + '_' + image_set)
         self._year = year
         self._image_set = image_set
-        self._ILSVRC_path = cfg.ROOT_DIR if ILSVRC_path is None \
+        self._ILSVRC_path = self._get_default_path() if ILSVRC_path is None \
                             else ILSVRC_path
         self._map_det_path = os.path.join(self._ILSVRC_path, 'devkit/data/map_det.txt')
         self._DET_path = os.path.join(self._ILSVRC_path,'DET')
@@ -33,7 +33,7 @@ class imagenet(imdb):
         self._image_ext = '.JPEG'
         self._image_index = self._load_image_set_index()
         # Default to roidb handler
-        self._roidb_handler = self.rpn_roidb
+        self._roidb_handler = self.gt_roidb
         self._salt = str(uuid.uuid4())
         self._comp_id = 'comp4'
 
@@ -51,6 +51,7 @@ class imagenet(imdb):
                 'Path does not exist: {}'.format(self._map_det_path)
         assert os.path.exists(self._DET_path), \
                 'Path does not exist: {}'.format(self._DET_path)
+        print "class imagenet initialization done."
 
     def _load_class_wnids(self, map_det_path):
         classes = ['__background__'] # always index 0
@@ -69,8 +70,9 @@ class imagenet(imdb):
         """
         Return the absolute path to image i in the image sequence.
         """
-        #print i, self._image_index[i]
-        return self.image_path_from_index(self._image_index[i])
+        path = self.image_path_from_index(self._image_index[i])
+        print "image path:{}".format(path)
+        return path
 
     def image_path_from_index(self, index):
         """
@@ -94,12 +96,13 @@ class imagenet(imdb):
             for i in xrange(1,201):  # there are 200 image_set_file for training
                 i_image_set_file = os.path.join(image_set_file, \
                                                 self._image_set + '_' + str(i) + '.txt')
+                print 'load from {}'.format(i_image_set_file)
                 assert os.path.exists(i_image_set_file), \
                     'Path does not exist: {}'.format(i_image_set_file)
                 with open(i_image_set_file) as f:
                     for x in f.readlines():  ## only use positive training samples
                         image_name, flag = x.split(' ')
-                        if flag.strip() == '1' and self._image_ratio_check(image_name) == True:
+                        if flag.strip() == '1' :
                             # print image_name
                             image_index.extend([image_name])
         else:
@@ -108,8 +111,8 @@ class imagenet(imdb):
             assert os.path.exists(image_set_file), \
                     'Path does not exist: {}'.format(image_set_file)
             with open(image_set_file) as f:
-                image_index = [x.split(' ')[0] for x in f.readlines()]    
-
+                image_index = [x.split(' ')[0] for x in f.readlines()]
+        print "load image set index done"
         return image_index
 
 
@@ -120,12 +123,14 @@ class imagenet(imdb):
         This function loads/saves from/to a cache file to speed up future calls.
         """
         cache_file = os.path.join(self.cache_path, self.name + '_gt_roidb.pkl')
+        print 'gt_roidb cache_file:{}'.format(cache_file)
         if os.path.exists(cache_file):
             with open(cache_file, 'rb') as fid:
                 roidb = cPickle.load(fid)
             print '{} gt roidb loaded from {}'.format(self.name, cache_file)
             return roidb
-
+        
+        print 'gt_roidb: load ILSVRC annotation'
         gt_roidb = [self._load_ILSVRC_annotation(index)
                     for index in self.image_index]
         with open(cache_file, 'wb') as fid:
@@ -151,6 +156,11 @@ class imagenet(imdb):
             box_list = cPickle.load(f)
         return self.create_roidb_from_box_list(box_list, gt_roidb)
 
+    def _get_default_path(self):
+        """
+        Return the default path where PASCAL VOC is expected to be installed.
+        """
+        return os.path.join(cfg.DATA_DIR, 'imagenetdevkit' + self._year)
 
     def _load_ILSVRC_annotation(self, index):
         """
@@ -158,6 +168,15 @@ class imagenet(imdb):
         format.
         """
         filename = os.path.join(self._DET_path, 'Annotations', 'DET', self._image_set, index + '.xml')
+        """
+        if not os.path.exists(filename):
+            print "gt_overlaps_null:{}".format(scipy.sparse.csr_matrix(np.zeros((0, self.num_classes), dtype=np.float32)))
+            return {'boxes' : np.zeros((0, 4), dtype=np.uint16),
+                'gt_classes': np.zeros((0), dtype=np.int32),
+                'gt_overlaps' :scipy.sparse.csr_matrix(np.zeros((0, self.num_classes), dtype=np.float32)),
+                'flipped' : False,
+                'seg_areas' : np.zeros((0), dtype=np.float32)}
+        """
         tree = ET.parse(filename)
         objs = tree.findall('object')
         num_objs = len(objs)
@@ -169,20 +188,17 @@ class imagenet(imdb):
         seg_areas = np.zeros((num_objs), dtype=np.float32)
 
         # Load object bounding boxes into a data frame.
-        for ix, obj in enumerate(objs):
-            bbox = obj.find('bndbox')
-            # Make pixel indexes 0-based
-            x1 = float(bbox.find('xmin').text)
-            y1 = float(bbox.find('ymin').text)
-            x2 = float(bbox.find('xmax').text)
-            y2 = float(bbox.find('ymax').text)
-            cls = self._class_to_ind[obj.find('name').text.lower().strip()]
-            boxes[ix, :] = [x1, y1, x2, y2]
-            gt_classes[ix] = cls
-            overlaps[ix, cls] = 1.0
-            seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
+        if self._image_ratio_check(index) == True:
+            for ix, obj in enumerate(objs):
+                x1, y1, x2, y2 = self._extra_axis(obj)
+                cls = self._class_to_ind[obj.find('name').text.lower().strip()]
+                boxes[ix, :] = [x1, y1, x2, y2]
+                gt_classes[ix] = cls
+                overlaps[ix, int(cls)] = 1.0
+                seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
 
         overlaps = scipy.sparse.csr_matrix(overlaps)
+        print "gt_overlaps:{}".format(overlaps)
 
         return {'boxes' : boxes,
                 'gt_classes': gt_classes,
@@ -195,6 +211,7 @@ class imagenet(imdb):
         """
         if the image or bounding boxes are too large or too small,
         they need to be removed.
+        [(x1,y1,x2,y2,name),(...)]
         """
         filename = os.path.join(self._DET_path, 'Annotations', 'DET', self._image_set, index + '.xml')
         tree = ET.parse(filename)
@@ -208,18 +225,19 @@ class imagenet(imdb):
         objs = tree.findall('object')
         # Load object bounding boxes into a data frame.
         for obj in objs:
-            bbox = obj.find('bndbox')
-            # Make pixel indexes 0-based
-            x1 = float(bbox.find('xmin').text)
-            y1 = float(bbox.find('ymin').text)
-            x2 = float(bbox.find('xmax').text)
-            y2 = float(bbox.find('ymax').text)
+            x1, y1, x2, y2 = self._extra_axis(obj)
             if y2-y1<=0 or (x2-x1)/(y2-y1)<bbox_ratio[0] or (x2-x1)/(y2-y1)>bbox_ratio[1]:
                 return False
 
         return True
 
-
+    def _extra_axis(self, xml_obj):
+        bbox = xml_obj.find('bndbox')
+        x1 = float(bbox.find('xmin').text)
+        y1 = float(bbox.find('ymin').text)
+        x2 = float(bbox.find('xmax').text)
+        y2 = float(bbox.find('ymax').text)
+        return x1, y1, x2, y2
 
     def _get_comp_id(self):
         comp_id = (self._comp_id + '_' + self._salt if self.config['use_salt']

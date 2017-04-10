@@ -20,7 +20,6 @@ from .coco import coco
 from .kittivoc import kittivoc
 from .imagenet import imagenet
 
-
 def _selective_search_IJCV_top_k(split, year, top_k):
     """Return an imdb that uses the top k proposals from the selective search
     IJCV code.

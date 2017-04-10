@@ -33,6 +33,7 @@ def log_print(text, color=None, on_color=None, attrs=None):
 
 # hyper-parameters
 # ------------
+print "initialize"
 imdb_name = 'imagenet_2015_train'
 cfg_file = 'experiments/cfgs/faster_rcnn_end2end.yml'
 pretrained_model = '/disk2/data/pytorch_models/resnet152-b121ed2d.pth'
@@ -55,6 +56,7 @@ if rand_seed is not None:
     np.random.seed(rand_seed)
 
 # load config
+print "load cfg from file"
 cfg_from_file(cfg_file)
 lr = cfg.TRAIN.LEARNING_RATE
 momentum = cfg.TRAIN.MOMENTUM
@@ -63,12 +65,17 @@ disp_interval = cfg.TRAIN.DISPLAY
 log_interval = cfg.TRAIN.LOG_IMAGE_ITERS
 
 # load data
+print "load data"
 imdb = get_imdb(imdb_name)
+print "prepare roidb"
 rdl_roidb.prepare_roidb(imdb)
+print "done"
 roidb = imdb.roidb
+print "ROIDataLayer"
 data_layer = RoIDataLayer(roidb, imdb.num_classes)
 
 # load netZZ
+print "initialize faster rcnn"
 net = FasterRCNN(classes=imdb.classes, debug=_DEBUG)
 network.weights_normal_init(net, dev=0.01)
 #network.load_pretrained_npy(net, pretrained_model)
@@ -103,8 +110,9 @@ step_cnt = 0
 re_cnt = False
 t = Timer()
 t.tic()
+print "start training"
 for step in range(start_step, end_step+1):
-
+    print "step:{}".format(step)
     # get one batch
     blobs = data_layer.forward()
     im_data = blobs['data']
