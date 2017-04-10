@@ -89,22 +89,15 @@ class imagenet(imdb):
         Load the indexes listed in this dataset's image set file.
         """
         # Example path to image set file:
-        # self._DET_path + /ImageSets/DET/train_1.txt
-        image_set_file = os.path.join(self._DET_path, 'ImageSets', 'DET')
+        # self._DET_path + /ImageSets/DET/train_satisfied.txt
         if self._image_set == 'train': 
-            image_index = []
-            for i in xrange(1,201):  # there are 200 image_set_file for training
-                i_image_set_file = os.path.join(image_set_file, \
-                                                self._image_set + '_' + str(i) + '.txt')
-                print 'load from {}'.format(i_image_set_file)
-                assert os.path.exists(i_image_set_file), \
-                    'Path does not exist: {}'.format(i_image_set_file)
-                with open(i_image_set_file) as f:
-                    for x in f.readlines():  ## only use positive training samples
-                        image_name, flag = x.split(' ')
-                        if flag.strip() == '1' :
-                            # print image_name
-                            image_index.extend([image_name])
+            image_set_file = os.path.join(self._DET_path, 'ImageSets', 'DET',
+                                      self._image_set + '_satisfied.txt')
+            assert os.path.exists(i_image_set_file), \
+                'Path does not exist: {}'.format(i_image_set_file)
+            with open(i_image_set_file) as f:
+                image_index = [x.strip() for x in f.readlines()]
+
         else:
             image_set_file = os.path.join(self._DET_path, 'ImageSets', 'DET',\
                                           self._image_set + '.txt')
@@ -113,6 +106,7 @@ class imagenet(imdb):
             with open(image_set_file) as f:
                 image_index = [x.split(' ')[0] for x in f.readlines()]
         print "load image set index done"
+
         return image_index
 
 
@@ -188,14 +182,13 @@ class imagenet(imdb):
         seg_areas = np.zeros((num_objs), dtype=np.float32)
 
         # Load object bounding boxes into a data frame.
-        if self._image_ratio_check(index) == True:
-            for ix, obj in enumerate(objs):
-                x1, y1, x2, y2 = self._extra_axis(obj)
-                cls = self._class_to_ind[obj.find('name').text.lower().strip()]
-                boxes[ix, :] = [x1, y1, x2, y2]
-                gt_classes[ix] = cls
-                overlaps[ix, int(cls)] = 1.0
-                seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
+        for ix, obj in enumerate(objs):
+            x1, y1, x2, y2 = self._extra_axis(obj)
+            cls = self._class_to_ind[obj.find('name').text.lower().strip()]
+            boxes[ix, :] = [x1, y1, x2, y2]
+            gt_classes[ix] = cls
+            overlaps[ix, int(cls)] = 1.0
+            seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
 
         overlaps = scipy.sparse.csr_matrix(overlaps)
         print "gt_overlaps:{}".format(overlaps)
@@ -206,38 +199,6 @@ class imagenet(imdb):
                 'flipped' : False,
                 'seg_areas' : seg_areas}
 
-
-    def _image_ratio_check(self, index, image_ratio=[0.462,6.868],bbox_ratio=[0.117,15.5]):
-        """
-        if the image or bounding boxes are too large or too small,
-        they need to be removed.
-        [(x1,y1,x2,y2,name),(...)]
-        """
-        filename = os.path.join(self._DET_path, 'Annotations', 'DET', self._image_set, index + '.xml')
-        tree = ET.parse(filename)
-
-        size = tree.find('size')
-        width = float(size.find('width').text)
-        height = float(size.find('height').text)
-        if width/height<image_ratio[0] or width/height>image_ratio[1]:
-            return False
-
-        objs = tree.findall('object')
-        # Load object bounding boxes into a data frame.
-        for obj in objs:
-            x1, y1, x2, y2 = self._extra_axis(obj)
-            if y2-y1<=0 or (x2-x1)/(y2-y1)<bbox_ratio[0] or (x2-x1)/(y2-y1)>bbox_ratio[1]:
-                return False
-
-        return True
-
-    def _extra_axis(self, xml_obj):
-        bbox = xml_obj.find('bndbox')
-        x1 = float(bbox.find('xmin').text)
-        y1 = float(bbox.find('ymin').text)
-        x2 = float(bbox.find('xmax').text)
-        y2 = float(bbox.find('ymax').text)
-        return x1, y1, x2, y2
 
     def _get_comp_id(self):
         comp_id = (self._comp_id + '_' + self._salt if self.config['use_salt']
