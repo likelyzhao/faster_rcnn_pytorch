@@ -33,14 +33,14 @@ def log_print(text, color=None, on_color=None, attrs=None):
 
 # hyper-parameters
 # ------------
-imdb_name = 'voc_2007_trainval'
+imdb_name = 'imagenet_2015_train'
 cfg_file = 'experiments/cfgs/faster_rcnn_end2end.yml'
-pretrained_model = 'data/pretrained_model/VGG_imagenet.npy'
+pretrained_model = '/disk2/data/pytorch_models/resnet152-b121ed2d.pth'
 output_dir = 'models/saved_model3'
 
 start_step = 0
-end_step = 100000
-lr_decay_steps = {60000, 80000}
+end_step = 1200000
+lr_decay_steps = 40000
 lr_decay = 1./10
 
 rand_seed = 1024
@@ -68,24 +68,18 @@ rdl_roidb.prepare_roidb(imdb)
 roidb = imdb.roidb
 data_layer = RoIDataLayer(roidb, imdb.num_classes)
 
-# load net
+# load netZZ
 net = FasterRCNN(classes=imdb.classes, debug=_DEBUG)
 network.weights_normal_init(net, dev=0.01)
-network.load_pretrained_npy(net, pretrained_model)
-# model_file = '/media/longc/Data/models/VGGnet_fast_rcnn_iter_70000.h5'
-# model_file = 'models/saved_model3/faster_rcnn_60000.h5'
-# network.load_net(model_file, net)
-# exp_name = 'vgg16_02-19_13-24'
-# start_step = 60001
-# lr /= 10.
-# network.weights_normal_init([net.bbox_fc, net.score_fc, net.fc6, net.fc7], dev=0.01)
+#network.load_pretrained_npy(net, pretrained_model)
+network.load_pretrained_pth(net, pretrained_model)
 
 net.cuda()
 net.train()
 
 params = list(net.parameters())
 # optimizer = torch.optim.Adam(params[-8:], lr=lr)
-optimizer = torch.optim.SGD(params[8:], lr=lr, momentum=momentum, weight_decay=weight_decay)
+optimizer = torch.optim.SGD(params[190:], lr=lr, momentum=momentum, weight_decay=weight_decay)
 
 if not os.path.exists(output_dir):
     os.mkdir(output_dir)
@@ -170,7 +164,7 @@ for step in range(start_step, end_step+1):
         save_name = os.path.join(output_dir, 'faster_rcnn_{}.h5'.format(step))
         network.save_net(save_name, net)
         print('save model: {}'.format(save_name))
-    if step in lr_decay_steps:
+    if step % lr_decay_steps == 0:
         lr *= lr_decay
         optimizer = torch.optim.SGD(params[8:], lr=lr, momentum=momentum, weight_decay=weight_decay)
 

@@ -82,6 +82,13 @@ def load_pretrained_npy(faster_rcnn_model, fname):
         frcnn_dict[key].copy_(param)
 
 
+def load_pretrained_pth(faster_rcnn_model, fname):
+    params = torch.load(fname)
+    resnet_dict = faster_rcnn_model.rpn.features.state_dict()
+    for name,val in resnet_dict.items():
+        val.copy_(params[name])
+
+
 def np_to_variable(x, is_cuda=True, dtype=torch.FloatTensor):
     v = Variable(torch.from_numpy(x).type(dtype))
     if is_cuda:

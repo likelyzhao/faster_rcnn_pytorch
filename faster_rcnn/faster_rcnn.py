@@ -17,7 +17,8 @@ import network
 from network import Conv2d, FC
 # from roi_pooling.modules.roi_pool_py import RoIPool
 from roi_pooling.modules.roi_pool import RoIPool
-from vgg16 import VGG16
+#from vgg16 import VGG16
+from resnet import ResNet152
 
 
 def nms_detections(pred_boxes, scores, nms_thresh, inds=None):
@@ -36,7 +37,7 @@ class RPN(nn.Module):
     def __init__(self):
         super(RPN, self).__init__()
 
-        self.features = VGG16(bn=False)
+        self.features = ResNet152()
         self.conv1 = Conv2d(512, 512, 3, same_padding=True)
         self.score_conv = Conv2d(512, len(self.anchor_scales) * 3 * 2, 1, relu=False, same_padding=False)
         self.bbox_conv = Conv2d(512, len(self.anchor_scales) * 3 * 4, 1, relu=False, same_padding=False)
@@ -171,23 +172,16 @@ class RPN(nn.Module):
 
 
 class FasterRCNN(nn.Module):
-    n_classes = 21
-    classes = np.asarray(['__background__',
-                       'aeroplane', 'bicycle', 'bird', 'boat',
-                       'bottle', 'bus', 'car', 'cat', 'chair',
-                       'cow', 'diningtable', 'dog', 'horse',
-                       'motorbike', 'person', 'pottedplant',
-                       'sheep', 'sofa', 'train', 'tvmonitor'])
+
     PIXEL_MEANS = np.array([[[102.9801, 115.9465, 122.7717]]])
     SCALES = (600,)
     MAX_SIZE = 1000
 
-    def __init__(self, classes=None, debug=False):
+    def __init__(self, classes, debug=False):
         super(FasterRCNN, self).__init__()
 
-        if classes is not None:
-            self.classes = classes
-            self.n_classes = len(classes)
+        self.classes = classes
+        self.n_classes = len(classes)
 
         self.rpn = RPN()
         self.roi_pool = RoIPool(7, 7, 1.0/16)

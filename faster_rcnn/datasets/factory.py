@@ -18,6 +18,7 @@ from .kitti_tracking import kitti_tracking
 from .nthu import nthu
 from .coco import coco
 from .kittivoc import kittivoc
+from .imagenet import imagenet
 
 
 def _selective_search_IJCV_top_k(split, year, top_k):
@@ -68,6 +69,11 @@ for split in ['71', '370']:
     # print name
     __sets[name] = (lambda split=split: nthu(split))
 
+# Set up imagenet_2015_<split>
+for year in ['2015']:
+    for split in ['train', 'val']:
+        name = 'imagenet_{}_{}'.format(year, split)
+        __sets[name] = (lambda split=split, year=year: imagenet(split, year))
 
 def get_imdb(name):
     """Get an imdb (image database) by name."""
