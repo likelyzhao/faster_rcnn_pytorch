@@ -40,8 +40,8 @@ pretrained_model = '/disk2/data/pytorch_models/resnet152-b121ed2d.pth'
 output_dir = 'models/saved_model3'
 
 start_step = 0
-end_step = 1200000
-lr_decay_steps = 40000
+end_step = 360000
+lr_decay_steps = 120000
 lr_decay = 1./10
 
 rand_seed = 1024
@@ -86,7 +86,7 @@ net.train()
 
 params = list(net.parameters())
 # optimizer = torch.optim.Adam(params[-8:], lr=lr)
-optimizer = torch.optim.SGD(params[190:], lr=lr, momentum=momentum, weight_decay=weight_decay)
+optimizer = torch.optim.SGD(params[725:], lr=lr, momentum=momentum, weight_decay=weight_decay)
 
 if not os.path.exists(output_dir):
     os.mkdir(output_dir)
@@ -174,7 +174,8 @@ for step in range(start_step, end_step+1):
         print('save model: {}'.format(save_name))
     if step % lr_decay_steps == 0:
         lr *= lr_decay
-        optimizer = torch.optim.SGD(params[8:], lr=lr, momentum=momentum, weight_decay=weight_decay)
+        print "learning rate decay:{}".format(lr)
+        optimizer = torch.optim.SGD(params[725:], lr=lr, momentum=momentum, weight_decay=weight_decay)
 
     if re_cnt:
         tp, tf, fg, bg = 0., 0., 0, 0

@@ -146,9 +146,9 @@ class ResNet152(nn.Module):
     def load_from_pth(self,fname):
         own_dict = self.state_dict()
         params = torch.load(fname)
-        for name in own_dict.keys():
+        for i,name in enumerate(own_dict.keys()):
             own_dict[name].copy_(params[name])
-        print own_dict
+            print "param-{}:{}".format(i,name)
 
 
 if __name__ == '__main__':

@@ -11,19 +11,19 @@ def get_satisfied_images():
     for i in xrange(1,201):  # there are 200 image_set_file for training
         i_image_set_file = os.path.join(image_set_file, \
                                         'train_' + str(i) + '.txt')
-        print 'load from {}'.format(i_image_set_file)
+        print 'process {}-th training txt: {}'.format(i, i_image_set_file)
         assert os.path.exists(i_image_set_file), \
             'Path does not exist: {}'.format(i_image_set_file)
         with open(i_image_set_file) as f:
             for x in f.readlines():  ## only use positive training samples
-                print x,len(x)
+                #print x,len(x)
                 if len(x)>2:
                     image_name, flag = x.split(' ')
                     if flag.strip() == '1' and image_ratio_check(image_name) == True :
-                        print "satisfied:{}-{}".format(i,image_name)
+                        #print "satisfied:{}-{}".format(i,image_name)
                         image_index.extend([image_name])
                     else:
-                        print "bad:{}".format(image_name)
+                        #print "bad:{}".format(image_name)
                         bad_image_index.extend([image_name])
     return image_index, bad_image_index
 
@@ -60,6 +60,7 @@ def image_ratio_check(index, image_ratio=[0.462,6.868],bbox_ratio=[0.117,15.5]):
     return True
 
 def save_list(image_index, savepath):
+    print "save to {}".format(savepath)
     with open(savepath,"w") as f:
         for name in image_index:
             f.write(name)
@@ -69,5 +70,5 @@ def save_list(image_index, savepath):
 
 if __name__ == '__main__':
     image_index, bad_image_index = get_satisfied_images()
-    save_list(image_index, os.join(IMAGE_ROOT, 'ImageSets', 'DET', 'train_satisfied.txt'))
-    save_list(bad_image_index,  os.join(IMAGE_ROOT, 'ImageSets', 'DET', 'train_bad.txt'))
+    save_list(image_index, os.path.join(IMAGE_ROOT, 'ImageSets', 'DET', 'train_satisfied.txt'))
+    save_list(bad_image_index,  os.path.join(IMAGE_ROOT, 'ImageSets', 'DET', 'train_bad.txt'))

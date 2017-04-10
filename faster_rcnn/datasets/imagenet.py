@@ -71,7 +71,7 @@ class imagenet(imdb):
         Return the absolute path to image i in the image sequence.
         """
         path = self.image_path_from_index(self._image_index[i])
-        print "image path:{}".format(path)
+        # print "image path:{}".format(path)
         return path
 
     def image_path_from_index(self, index):
@@ -93,9 +93,9 @@ class imagenet(imdb):
         if self._image_set == 'train': 
             image_set_file = os.path.join(self._DET_path, 'ImageSets', 'DET',
                                       self._image_set + '_satisfied.txt')
-            assert os.path.exists(i_image_set_file), \
-                'Path does not exist: {}'.format(i_image_set_file)
-            with open(i_image_set_file) as f:
+            assert os.path.exists(image_set_file), \
+                'Path does not exist: {}'.format(image_set_file)
+            with open(image_set_file) as f:
                 image_index = [x.strip() for x in f.readlines()]
 
         else:
@@ -183,7 +183,11 @@ class imagenet(imdb):
 
         # Load object bounding boxes into a data frame.
         for ix, obj in enumerate(objs):
-            x1, y1, x2, y2 = self._extra_axis(obj)
+            bbox = obj.find('bndbox')
+            x1 = float(bbox.find('xmin').text)
+            y1 = float(bbox.find('ymin').text)
+            x2 = float(bbox.find('xmax').text)
+            y2 = float(bbox.find('ymax').text)
             cls = self._class_to_ind[obj.find('name').text.lower().strip()]
             boxes[ix, :] = [x1, y1, x2, y2]
             gt_classes[ix] = cls

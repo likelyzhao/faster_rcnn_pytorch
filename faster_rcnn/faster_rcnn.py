@@ -54,7 +54,7 @@ class RPN(nn.Module):
         im_data = network.np_to_variable(im_data, is_cuda=True)
         im_data = im_data.permute(0, 3, 1, 2)
         features = self.features(im_data)
-        print "RPN features:{}".format(features)
+        # print "RPN features:{}".format(features)
         rpn_conv1 = self.conv1(features)
 
         # rpn score
