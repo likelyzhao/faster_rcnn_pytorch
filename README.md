@@ -52,6 +52,27 @@ Then you can set some hyper-parameters in `train.py` and training parameters in 
 Now I got a 0.661 mAP on VOC07 while the origin paper got a 0.699 mAP.
 You may need to tune the loss function defined in `faster_rcnn/faster_rcnn.py` by yourself.
 
+### Training on Imagenet 2015
+
+Since the image sizes and bbox sizes in the Imagenet DB have conflicts with Pascal VOC DB, 
+before training, we have to clean those images with conflicts first.
+```bash
+python image_preprocess.py
+```
+
+Then we can start training with the remaining images. 
+
+Since the program loading the data in `faster_rcnn_pytorch/data` by default,
+you can set the data path as following.
+```bash
+cd faster_rcnn_pytorch
+mkdir data
+cd data
+ln -s $imagenetdevkit imagenetdevkit2015
+```
+
+Then you can set some hyper-parameters in `train.py` and training parameters in the `.yml` file.
+
 ### Training with TensorBoard
 With the aid of [Crayon](https://github.com/torrvision/crayon),
 we can access the visualisation power of TensorBoard for any 
