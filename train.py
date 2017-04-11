@@ -86,7 +86,7 @@ net.train()
 
 params = list(net.parameters())
 # optimizer = torch.optim.Adam(params[-8:], lr=lr)
-optimizer = torch.optim.SGD(params[725:], lr=lr, momentum=momentum, weight_decay=weight_decay)
+optimizer = torch.optim.SGD(params[142:], lr=lr, momentum=momentum, weight_decay=weight_decay)
 
 if not os.path.exists(output_dir):
     os.mkdir(output_dir)
@@ -175,7 +175,7 @@ for step in range(start_step, end_step+1):
     if step % lr_decay_steps == 0:
         lr *= lr_decay
         print "learning rate decay:{}".format(lr)
-        optimizer = torch.optim.SGD(params[725:], lr=lr, momentum=momentum, weight_decay=weight_decay)
+        optimizer = torch.optim.SGD(params[142:], lr=lr, momentum=momentum, weight_decay=weight_decay)
 
     if re_cnt:
         tp, tf, fg, bg = 0., 0., 0, 0
