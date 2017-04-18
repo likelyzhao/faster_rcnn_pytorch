@@ -196,91 +196,175 @@ class Block8(nn.Module):
 
 class InceptionResnetV2(nn.Module):
 
-    def __init__(self, num_classes=1001):
+    def __init__(self, endlayer=''):
         super(InceptionResnetV2, self).__init__()
-        self.conv2d_1a = BasicConv2d(3, 32, kernel_size=3, stride=2)
-        self.conv2d_2a = BasicConv2d(32, 32, kernel_size=3, stride=1)
-        self.conv2d_2b = BasicConv2d(32, 64, kernel_size=3, stride=1, padding=1)
-        self.maxpool_3a = nn.MaxPool2d(3, stride=2)
-        self.conv2d_3b = BasicConv2d(64, 80, kernel_size=1, stride=1)
-        self.conv2d_4a = BasicConv2d(80, 192, kernel_size=3, stride=1)
-        self.maxpool_5a = nn.MaxPool2d(3, stride=2)
-        self.mixed_5b = Mixed_5b()
-        self.repeat = nn.Sequential(
-            Block35(scale=0.17),
-            Block35(scale=0.17),
-            Block35(scale=0.17),
-            Block35(scale=0.17),
-            Block35(scale=0.17),
-            Block35(scale=0.17),
-            Block35(scale=0.17),
-            Block35(scale=0.17),
-            Block35(scale=0.17),
-            Block35(scale=0.17)
-        )
-        self.mixed_6a = Mixed_6a()
-        self.repeat_1 = nn.Sequential(
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10),
-            Block17(scale=0.10)
-        )
-        self.mixed_7a = Mixed_7a()
-        self.repeat_2 = nn.Sequential(
-            Block8(scale=0.20),
-            Block8(scale=0.20),
-            Block8(scale=0.20),
-            Block8(scale=0.20),
-            Block8(scale=0.20),
-            Block8(scale=0.20),
-            Block8(scale=0.20),
-            Block8(scale=0.20),
-            Block8(scale=0.20)
-        )
-        self.block8 = Block8(noReLU=True)
-        self.conv2d_7b = BasicConv2d(2080, 1536, kernel_size=1, stride=1)
-        """
-        self.avgpool_1a = nn.AvgPool2d(8, count_include_pad=False)
-        self.classif = nn.Linear(1536, num_classes)
-        """
+        self.endlayer = endlayer
+        if self.endlayer == 'inception-resnet-B':
+            self.conv2d_1a = BasicConv2d(3, 32, kernel_size=3, stride=2)
+            self.conv2d_2a = BasicConv2d(32, 32, kernel_size=3, stride=1)
+            self.conv2d_2b = BasicConv2d(32, 64, kernel_size=3, stride=1, padding=1)
+            self.maxpool_3a = nn.MaxPool2d(3, stride=2)
+            self.conv2d_3b = BasicConv2d(64, 80, kernel_size=1, stride=1)
+            self.conv2d_4a = BasicConv2d(80, 192, kernel_size=3, stride=1)
+            self.maxpool_5a = nn.MaxPool2d(3, stride=2)
+            self.mixed_5b = Mixed_5b()
+            self.repeat = nn.Sequential(
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17)
+            )
+            self.mixed_6a = Mixed_6a()
+            self.repeat_1 = nn.Sequential(
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10)
+            )
+        elif endlayer == 'avgpool':
+            self.mixed_7a = Mixed_7a()
+            self.repeat_2 = nn.Sequential(
+                Block8(scale=0.20),
+                Block8(scale=0.20),
+                Block8(scale=0.20),
+                Block8(scale=0.20),
+                Block8(scale=0.20),
+                Block8(scale=0.20),
+                Block8(scale=0.20),
+                Block8(scale=0.20),
+                Block8(scale=0.20)
+            )
+            self.block8 = Block8(noReLU=True)
+            self.conv2d_7b = BasicConv2d(2080, 1536, kernel_size=1, stride=1)
+            self.avgpool_1a =nn.AvgPool2d(3,count_include_pad=False) # different with original setting
+        else:
+            self.conv2d_1a = BasicConv2d(3, 32, kernel_size=3, stride=2)
+            self.conv2d_2a = BasicConv2d(32, 32, kernel_size=3, stride=1)
+            self.conv2d_2b = BasicConv2d(32, 64, kernel_size=3, stride=1, padding=1)
+            self.maxpool_3a = nn.MaxPool2d(3, stride=2)
+            self.conv2d_3b = BasicConv2d(64, 80, kernel_size=1, stride=1)
+            self.conv2d_4a = BasicConv2d(80, 192, kernel_size=3, stride=1)
+            self.maxpool_5a = nn.MaxPool2d(3, stride=2)
+            self.mixed_5b = Mixed_5b()
+            self.repeat = nn.Sequential(
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17),
+                Block35(scale=0.17)
+            )
+            self.mixed_6a = Mixed_6a()
+            self.repeat_1 = nn.Sequential(
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10),
+                Block17(scale=0.10)
+            )
+            self.mixed_7a = Mixed_7a()
+            self.repeat_2 = nn.Sequential(
+                Block8(scale=0.20),
+                Block8(scale=0.20),
+                Block8(scale=0.20),
+                Block8(scale=0.20),
+                Block8(scale=0.20),
+                Block8(scale=0.20),
+                Block8(scale=0.20),
+                Block8(scale=0.20),
+                Block8(scale=0.20)
+            )
+            self.block8 = Block8(noReLU=True)
+            self.conv2d_7b = BasicConv2d(2080, 1536, kernel_size=1, stride=1)
+            """
+            self.avgpool_1a = nn.AvgPool2d(8, count_include_pad=False)
+            self.classif = nn.Linear(1536, num_classes)
+            """
 
     def forward(self, x):
-        x = self.conv2d_1a(x)
-        x = self.conv2d_2a(x)
-        x = self.conv2d_2b(x)
-        x = self.maxpool_3a(x)
-        x = self.conv2d_3b(x)
-        x = self.conv2d_4a(x)
-        x = self.maxpool_5a(x)
-        x = self.mixed_5b(x)
-        x = self.repeat(x)
-        x = self.mixed_6a(x)
-        x = self.repeat_1(x)
-        x = self.mixed_7a(x)
-        x = self.repeat_2(x)
-        x = self.block8(x)
-        x = self.conv2d_7b(x)
-        """
-        x = self.avgpool_1a(x)
-        x = x.view(x.size(0), -1)
-        x = self.classif(x) 
-        """
+        if self.endlayer == 'inception-resnet-B':
+            x = self.conv2d_1a(x)
+            x = self.conv2d_2a(x)
+            x = self.conv2d_2b(x)
+            x = self.maxpool_3a(x)
+            x = self.conv2d_3b(x)
+            x = self.conv2d_4a(x)
+            x = self.maxpool_5a(x)
+            x = self.mixed_5b(x)
+            x = self.repeat(x)
+            x = self.mixed_6a(x)
+            x = self.repeat_1(x)
+
+        elif self.endlayer == 'avgpool':
+            x = self.mixed_7a(x)
+            x = self.repeat_2(x)
+            x = self.block8(x)
+            x = self.conv2d_7b(x)
+            x = self.avgpool_1a(x)
+
+        else:
+            x = self.conv2d_1a(x)
+            x = self.conv2d_2a(x)
+            x = self.conv2d_2b(x)
+            x = self.maxpool_3a(x)
+            x = self.conv2d_3b(x)
+            x = self.conv2d_4a(x)
+            x = self.maxpool_5a(x)
+            x = self.mixed_5b(x)
+            x = self.repeat(x)
+            x = self.mixed_6a(x)
+            x = self.repeat_1(x)
+            x = self.mixed_7a(x)
+            x = self.repeat_2(x)
+            x = self.block8(x)
+            x = self.conv2d_7b(x)
+            x = self.avgpool_1a(x)
+            """
+            x = self.avgpool_1a(x)
+            x = x.view(x.size(0), -1)
+            x = self.classif(x) 
+            """
         return x
 
     def load_from_npz(self,params):
@@ -298,6 +382,9 @@ class InceptionResnetV2(nn.Module):
 
 
 if __name__ == '__main__':
-    inceptionresnet = InceptionResnetV2()
+    inceptionresnet = InceptionResnetV2('inception-resnet-B')
     inceptionresnet.load_from_pth('/disk2/data/pytorch_models/inceptionresnetv2-d579a627.pth')
+    param = list(inceptionresnet.parameters())
+    for i, p in enumerate(param):
+        print "param-{}: size-{}".format(i,p.size())
 

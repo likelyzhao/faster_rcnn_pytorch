@@ -4,8 +4,7 @@ import numpy as np
 from datetime import datetime
 
 from faster_rcnn import network
-#from faster_rcnn.faster_rcnn import FasterRCNN, RPN
-from faster_rcnn.faster_rcnn_inceptionresnetv2 import FasterRCNN, RPN
+from faster_rcnn.faster_rcnn_resnet152_imgsize1000 import FasterRCNN, RPN
 from faster_rcnn.utils.timer import Timer
 
 import faster_rcnn.roi_data_layer.roidb as rdl_roidb
@@ -37,13 +36,13 @@ def log_print(text, color=None, on_color=None, attrs=None):
 print "initialize"
 imdb_name = 'imagenet_2015_train'
 cfg_file = 'experiments/cfgs/faster_rcnn_end2end.yml'
-pretrained_model = '/disk2/data/pytorch_models/inceptionresnetv2-d579a627.pth'
-output_dir = 'models/saved_model3'
+pretrained_model = '/disk2/data/pytorch_models/resnet152-b121ed2d.pth'
+output_dir = '/disk2/data/pytorch_models/trained_models/resnet152_imgsize1000/saved_model3'
 
 start_step = 0
-end_step = 36000
-save_model_steps = 1200
-lr_decay_steps = 12000
+end_step = 4000000
+save_model_steps = 100000
+lr_decay_steps = {2400000,3200000}
 lr_decay = 1./10
 
 rand_seed = 1024
@@ -76,7 +75,7 @@ roidb = imdb.roidb
 print "ROIDataLayer"
 data_layer = RoIDataLayer(roidb, imdb.num_classes)
 
-# load netZZ
+# load net
 print "initialize faster rcnn"
 net = FasterRCNN(classes=imdb.classes, debug=_DEBUG)
 network.weights_normal_init(net, dev=0.01)
@@ -87,9 +86,9 @@ net.cuda()
 net.train()
 
 params = list(net.parameters())
-print params[587]
+# print params[435].size()
 # optimizer = torch.optim.Adam(params[-8:], lr=lr)
-optimizer = torch.optim.SGD(params[587:], lr=lr, momentum=momentum, weight_decay=weight_decay)
+optimizer = torch.optim.SGD(params[435:], lr=lr, momentum=momentum, weight_decay=weight_decay)
 
 if not os.path.exists(output_dir):
     os.mkdir(output_dir)
@@ -152,7 +151,7 @@ for step in range(start_step, end_step+1):
         log_print(log_text, color='green', attrs=['bold'])
 
         if _DEBUG:
-            log_print('\tTP: %.2f%%, TF: %.2f%%, fg/bg=(%d/%d)' % (tp/fg*100., tf/bg*100., fg/step_cnt, bg/step_cnt))
+            log_print('\tTP: %.2f%%, TF: %.2f%%, fg/bg=(%d/%d)' % (tp/(fg+1e-4)*100., tf/(bg+1e-4)*100., fg/step_cnt, bg/step_cnt))
             log_print('\trpn_cls: %.4f, rpn_box: %.4f, rcnn_cls: %.4f, rcnn_box: %.4f' % (
                 net.rpn.cross_entropy.data.cpu().numpy()[0], net.rpn.loss_box.data.cpu().numpy()[0],
                 net.cross_entropy.data.cpu().numpy()[0], net.loss_box.data.cpu().numpy()[0])
@@ -175,10 +174,10 @@ for step in range(start_step, end_step+1):
         save_name = os.path.join(output_dir, 'faster_rcnn_{}.h5'.format(step))
         network.save_net(save_name, net)
         print('save model: {}'.format(save_name))
-    if step % lr_decay_steps == 0:
+    if step in lr_decay_steps:
         lr *= lr_decay
         print "learning rate decay:{}".format(lr)
-        optimizer = torch.optim.SGD(params[587:], lr=lr, momentum=momentum, weight_decay=weight_decay)
+        optimizer = torch.optim.SGD(params[435:], lr=lr, momentum=momentum, weight_decay=weight_decay)
 
     if re_cnt:
         tp, tf, fg, bg = 0., 0., 0, 0

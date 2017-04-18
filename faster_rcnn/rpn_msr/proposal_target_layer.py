@@ -62,9 +62,20 @@ def proposal_target_layer(rpn_rois, gt_boxes, gt_ishard, dontcare_areas, _num_cl
     """
     jittered_gt_boxes = _jitter_gt_boxes(gt_easyboxes)
     zeros = np.zeros((gt_easyboxes.shape[0] * 2, 1), dtype=gt_easyboxes.dtype)
-    all_rois = np.vstack((all_rois, \
+    # print "gt_easyboxes shape:{}, jittered_gt_boxes shape:{}".format(gt_easyboxes,jittered_gt_boxes)
+    aaa = np.hstack((zeros, np.vstack((gt_easyboxes[:, :-1], jittered_gt_boxes[:, :-1]))))
+    """
+    print "gt_es.shape - ", gt_easyboxes.shape
+    print "jt_gt.shape - ", jittered_gt_boxes.shape
+    print "aaa.shape - ", aaa.shape
+    print "zeros.shape - ", zeros.shape
+    print "all_rois.shape - ",all_rois.shape  
+    """  
+    if all_rois.size == 0 :
+        all_rois = np.hstack((zeros, np.vstack((gt_easyboxes[:, :-1], jittered_gt_boxes[:, :-1]))))
+    else:
+        all_rois = np.vstack((all_rois, \
                           np.hstack((zeros, np.vstack((gt_easyboxes[:, :-1], jittered_gt_boxes[:, :-1]))))))
-
     # Sanity check: single batch only
     assert np.all(all_rois[:, 0] == 0), \
         'Only single item batches are supported'
@@ -239,6 +250,7 @@ def _jitter_gt_boxes(gt_boxes, jitter=0.05):
     gt_boxes: (G, 5) [x1 ,y1 ,x2, y2, class] int
     """
     jittered_boxes = gt_boxes.copy()
+    # print "gt_boxes shape:{}, jittered_boxes shape:{}".format(gt_boxes,jittered_boxes)
     ws = jittered_boxes[:, 2] - jittered_boxes[:, 0] + 1.0
     hs = jittered_boxes[:, 3] - jittered_boxes[:, 1] + 1.0
     width_offset = (np.random.rand(jittered_boxes.shape[0]) - 0.5) * jitter * ws
@@ -247,5 +259,6 @@ def _jitter_gt_boxes(gt_boxes, jitter=0.05):
     jittered_boxes[:, 2] += width_offset
     jittered_boxes[:, 1] += height_offset
     jittered_boxes[:, 3] += height_offset
+    # print "after transform, jittered_boxes shape:{}".format(jittered_boxes)
 
     return jittered_boxes
