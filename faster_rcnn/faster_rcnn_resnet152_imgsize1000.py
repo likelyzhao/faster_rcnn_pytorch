@@ -18,8 +18,8 @@ from network import Conv2d, FC
 # from roi_pooling.modules.roi_pool_py import RoIPool
 from roi_pooling.modules.roi_pool import RoIPool
 #from vgg16 import VGG16
-#from resnet import ResNet152
-from inceptionresnetv2 import InceptionResnetV2 
+from resnet import ResNet152
+
 
 def nms_detections(pred_boxes, scores, nms_thresh, inds=None):
     dets = np.hstack((pred_boxes,
@@ -31,16 +31,16 @@ def nms_detections(pred_boxes, scores, nms_thresh, inds=None):
 
 
 class RPN(nn.Module):
-    _feat_stride = [37, ]
+    _feat_stride = [16, ]
     anchor_scales = [8, 16, 32]
 
     def __init__(self):
         super(RPN, self).__init__()
 
-        self.features = InceptionResnetV2()
-        self.conv1 = Conv2d(1536, 1536, 3, same_padding=True)
-        self.score_conv = Conv2d(1536, len(self.anchor_scales) * 3 * 2, 1, relu=False, same_padding=False)
-        self.bbox_conv = Conv2d(1536, len(self.anchor_scales) * 3 * 4, 1, relu=False, same_padding=False)
+        self.features = ResNet152('layer3')
+        self.conv1 = Conv2d(1024, 512, 3, same_padding=True)
+        self.score_conv = Conv2d(512, len(self.anchor_scales) * 3 * 2, 1, relu=False, same_padding=False)
+        self.bbox_conv = Conv2d(512, len(self.anchor_scales) * 3 * 4, 1, relu=False, same_padding=False)
 
         # loss
         self.cross_entropy = None
@@ -53,7 +53,7 @@ class RPN(nn.Module):
     def forward(self, im_data, im_info, gt_boxes=None, gt_ishard=None, dontcare_areas=None):
         im_data = network.np_to_variable(im_data, is_cuda=True)
         im_data = im_data.permute(0, 3, 1, 2)
-        features = self.features(im_data)
+        features = self.features(im_data, 'layer3')
         # print "RPN features:{}".format(features)
         rpn_conv1 = self.conv1(features)
 
@@ -93,7 +93,7 @@ class RPN(nn.Module):
 
         rpn_cross_entropy = F.cross_entropy(rpn_cls_score, rpn_label)
 
-
+        # box loss
         rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights = rpn_data[1:]
         rpn_bbox_targets = torch.mul(rpn_bbox_targets, rpn_bbox_inside_weights)
         rpn_bbox_pred = torch.mul(rpn_bbox_pred, rpn_bbox_inside_weights)
@@ -175,20 +175,18 @@ class FasterRCNN(nn.Module):
 
     PIXEL_MEANS = np.array([[[102.9801, 115.9465, 122.7717]]])
     SCALES = (1000,)
-    MAX_SIZE = 1667
+    MAX_SIZE = 1666
 
     def __init__(self, classes, debug=False):
         super(FasterRCNN, self).__init__()
 
         self.classes = classes
         self.n_classes = len(classes)
-
         self.rpn = RPN()
-        self.roi_pool = RoIPool(7, 7, 1.0/4)
-        self.fc6 = FC(1536 * 7 * 7, 4096)
-        self.fc7 = FC(4096, 4096)
-        self.score_fc = FC(4096, self.n_classes, relu=False)
-        self.bbox_fc = FC(4096, self.n_classes * 4, relu=False)
+        self.roi_pool = RoIPool(7, 7, 1.0/16)
+        self.res5_features = ResNet152('layer4')
+        self.score_fc = FC(2048, self.n_classes, relu=False)
+        self.bbox_fc = FC(2048, self.n_classes * 4, relu=False)
 
         # loss
         self.cross_entropy = None
@@ -206,19 +204,19 @@ class FasterRCNN(nn.Module):
         return self.cross_entropy + self.loss_box * 10
 
     def forward(self, im_data, im_info, gt_boxes=None, gt_ishard=None, dontcare_areas=None):
-        features, rois = self.rpn(im_data, im_info, gt_boxes, gt_ishard, dontcare_areas)
-
+        res4_features, rois = self.rpn(im_data, im_info, gt_boxes, gt_ishard, dontcare_areas)
+        # print 'res4_feature',res4_features.size()
         if self.training:
             roi_data = self.proposal_target_layer(rois, gt_boxes, gt_ishard, dontcare_areas, self.n_classes)
             rois = roi_data[0]
 
         # roi pool
-        pooled_features = self.roi_pool(features, rois)
-        x = pooled_features.view(pooled_features.size()[0], -1)
-        x = self.fc6(x)
-        x = F.dropout(x, training=self.training)
-        x = self.fc7(x)
-        x = F.dropout(x, training=self.training)
+        pooled_features = self.roi_pool(res4_features, rois)
+        # print 'pooled_features',pooled_features.size()
+        res5_features = self.res5_features(pooled_features,'layer4')
+        # print 'res5_feature',res5_features.size()
+        x = res5_features.view(res5_features.size()[0], -1)
+        # print 'res5_feature_view',res5_features.size()
 
         cls_score = self.score_fc(x)
         cls_prob = F.softmax(cls_score)
@@ -239,12 +237,12 @@ class FasterRCNN(nn.Module):
         if self.debug:
             maxv, predict = cls_score.data.max(1)
             self.tp = torch.sum(predict[:fg_cnt].eq(label.data[:fg_cnt])) if fg_cnt > 0 else 0
-            self.tf = torch.sum(predict[fg_cnt:].eq(label.data[fg_cnt:]))
+            self.tf = torch.sum(predict[fg_cnt:].eq(label.data[fg_cnt:])) if bg_cnt > 0 and len(predict)-fg_cnt > 0 else 0
             self.fg_cnt = fg_cnt
             self.bg_cnt = bg_cnt
 
         ce_weights = torch.ones(cls_score.size()[1])
-        ce_weights[0] = float(fg_cnt) / bg_cnt
+        ce_weights[0] = float(fg_cnt) / (bg_cnt + 1e-4)
         ce_weights = ce_weights.cuda()
         cross_entropy = F.cross_entropy(cls_score, label, weight=ce_weights)
 
@@ -382,3 +380,6 @@ class FasterRCNN(nn.Module):
             param = torch.from_numpy(params['{}/biases:0'.format(v)])
             own_dict[key].copy_(param)
 
+if __name__ == '__main__':
+    net = FasterRCNN(classes=[])
+    print net

@@ -28,18 +28,18 @@ def prepare_roidb(imdb):
     print "roidb.py"
     sizes = [PIL.Image.open(imdb.image_path_at(i)).size
              for i in xrange(imdb.num_images)]
-    print "num of images:{}".format(len(sizes))
+    print "num of images:{}".format(len(sizes)):
     roidb = imdb.roidb
     for i in xrange(len(imdb.image_index)):
         roidb[i]['image'] = imdb.image_path_at(i)
         roidb[i]['width'] = sizes[i][0]
         roidb[i]['height'] = sizes[i][1]
-        print "image:{},width:{},height:{}".format(roidb[i]['image'],roidb[i]['width'],roidb[i]['height'])
+        # print "image:{},width:{},height:{}".format(roidb[i]['image'],roidb[i]['width'],roidb[i]['height'])
         # need gt_overlaps as a dense array for argmax
         gt_overlaps = roidb[i]['gt_overlaps'].toarray()
         # max overlap with gt over classes (columns)
         max_overlaps = gt_overlaps.max(axis=1)
-        # gt class that had the max overlap
+        # gt class that had the max overlapvi ima
         max_classes = gt_overlaps.argmax(axis=1)
         roidb[i]['max_classes'] = max_classes
         roidb[i]['max_overlaps'] = max_overlaps
