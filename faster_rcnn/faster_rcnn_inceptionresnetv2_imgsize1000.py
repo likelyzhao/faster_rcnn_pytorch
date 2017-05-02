@@ -20,6 +20,12 @@ from roi_pooling.modules.roi_pool import RoIPool
 #from vgg16 import VGG16
 #from resnet import ResNet152
 from inceptionresnetv2 import InceptionResnetV2 
+import logging 
+logging.basicConfig(level=logging.DEBUG,
+                format='%(threadName)s %(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                datefmt='%a, %d %b %Y %H:%M:%S',
+                filename='myapp.log',
+                filemode='w')
 
 
 def nms_detections(pred_boxes, scores, nms_thresh, inds=None):
@@ -53,11 +59,21 @@ class RPN(nn.Module):
 
     def forward(self, im_data, im_info, gt_boxes=None, gt_ishard=None, dontcare_areas=None):
         im_data = network.np_to_variable(im_data, is_cuda=True)
-        im_data = im_data.permute(0, 3, 1, 2)
+
+#	deviceid = torch.cuda.current_device()
+#	logging.info('"deviceid {0}"'.format(deviceid))
+
+ #   	im_data = Variable(torch.from_numpy(im_data).type(torch.FloatTensor))
+ #     	im_data = im_data.cuda(deviceid)
+
+
+	logging.info('device of im_data is {0}'.format(im_data.get_device()))
+	im_data = im_data.permute(0, 3, 1, 2)
         features = self.features(im_data)
         # print "RPN features:{}".format(features)
         rpn_conv1 = self.conv1(features)
 
+	logging.info('"rpn_conv1 finished"')
         # rpn score
         rpn_cls_score = self.score_conv(rpn_conv1)
         rpn_cls_score_reshape = self.reshape_layer(rpn_cls_score, 2)
@@ -72,26 +88,38 @@ class RPN(nn.Module):
         rois = self.proposal_layer(rpn_cls_prob_reshape, rpn_bbox_pred, im_info,
                                    cfg_key, self._feat_stride, self.anchor_scales)
 
+	logging.info('device of rois is {0}'.format(rois.get_device()))
         # generating training labels and build the rpn loss
         if self.training:
             assert gt_boxes is not None
             rpn_data = self.anchor_target_layer(rpn_cls_score, gt_boxes, gt_ishard, dontcare_areas,
                                                 im_info, self._feat_stride, self.anchor_scales)
+           
             self.cross_entropy, self.loss_box = self.build_loss(rpn_cls_score_reshape, rpn_bbox_pred, rpn_data)
 
         return features, rois
 
     def build_loss(self, rpn_cls_score_reshape, rpn_bbox_pred, rpn_data):
         # classification loss
-        rpn_cls_score = rpn_cls_score_reshape.permute(0, 2, 3, 1).contiguous().view(-1, 2)
+	rpn_cls_score = rpn_cls_score_reshape.permute(0, 2, 3, 1).contiguous().view(-1, 2)
         rpn_label = rpn_data[0].view(-1)
 
-        rpn_keep = Variable(rpn_label.data.ne(-1).nonzero().squeeze()).cuda()
+	deviceid = rpn_cls_score.get_device()
+        rpn_keep = Variable(rpn_label.data.ne(-1).nonzero().squeeze()).cuda(deviceid)
         rpn_cls_score = torch.index_select(rpn_cls_score, 0, rpn_keep)
+	
+	print "111"
+	deviceid = rpn_label.get_device()
+	logging.info('device of rpnlabe is {0}'.format(rpn_label.get_device()))
+	
+        rpn_keep = Variable(rpn_label.data.ne(-1).nonzero().squeeze()).cuda(deviceid)
         rpn_label = torch.index_select(rpn_label, 0, rpn_keep)
-
+	print "111"
         fg_cnt = torch.sum(rpn_label.data.ne(0))
 
+	logging.info("111")
+	logging.info('device of rpnlabe is {0}'.format(rpn_label.get_device()))
+	logging.info('device of rpn_cls_score is {0}'.format(rpn_cls_score.get_device()))
         rpn_cross_entropy = F.cross_entropy(rpn_cls_score, rpn_label)
 
         # box loss
@@ -119,10 +147,13 @@ class RPN(nn.Module):
 
     @staticmethod
     def proposal_layer(rpn_cls_prob_reshape, rpn_bbox_pred, im_info, cfg_key, _feat_stride, anchor_scales):
+	deviceid = rpn_cls_prob_reshape.get_device()
         rpn_cls_prob_reshape = rpn_cls_prob_reshape.data.cpu().numpy()
         rpn_bbox_pred = rpn_bbox_pred.data.cpu().numpy()
         x = proposal_layer_py(rpn_cls_prob_reshape, rpn_bbox_pred, im_info, cfg_key, _feat_stride, anchor_scales)
-        x = network.np_to_variable(x, is_cuda=True)
+	with torch.cuda.device(deviceid):
+	    logging.info('"proposal deviceid {0}"'.format(deviceid))
+            x = network.np_to_variable(x, is_cuda=True)
         return x.view(-1, 5)
 
     @staticmethod
@@ -145,14 +176,21 @@ class RPN(nn.Module):
         rpn_bbox_outside_weights: (1, 4xA, H, W) used to balance the fg/bg,
         beacuse the numbers of bgs and fgs mays significiantly different
         """
-        rpn_cls_score = rpn_cls_score.data.cpu().numpy()
+	deviceid = rpn_cls_score.get_device()
+        
+	rpn_cls_score = rpn_cls_score.data.cpu().numpy()
         rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights = \
             anchor_target_layer_py(rpn_cls_score, gt_boxes, gt_ishard, dontcare_areas, im_info, _feat_stride, anchor_scales)
 
-        rpn_labels = network.np_to_variable(rpn_labels, is_cuda=True, dtype=torch.LongTensor)
-        rpn_bbox_targets = network.np_to_variable(rpn_bbox_targets, is_cuda=True)
-        rpn_bbox_inside_weights = network.np_to_variable(rpn_bbox_inside_weights, is_cuda=True)
-        rpn_bbox_outside_weights = network.np_to_variable(rpn_bbox_outside_weights, is_cuda=True)
+	with torch.cuda.device(deviceid):
+            rpn_labels = network.np_to_variable(rpn_labels, is_cuda=True, dtype=torch.LongTensor)
+            rpn_bbox_targets = network.np_to_variable(rpn_bbox_targets, is_cuda=True)
+	
+	    logging.info('"deviceid {0}"'.format(deviceid))
+
+	    logging.info('device of rpn_labels is {0}'.format(rpn_labels.get_device()))
+            rpn_bbox_inside_weights = network.np_to_variable(rpn_bbox_inside_weights, is_cuda=True)
+            rpn_bbox_outside_weights = network.np_to_variable(rpn_bbox_outside_weights, is_cuda=True)
 
         return rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights
 
@@ -205,28 +243,44 @@ class FasterRCNN(nn.Module):
         return self.cross_entropy + self.loss_box * 10
 
     def forward(self, im_data, im_info, gt_boxes=None, gt_ishard=None, dontcare_areas=None):
-        res4_features, rois = self.rpn(im_data, im_info, gt_boxes, gt_ishard, dontcare_areas)
+        
+
+	res4_features, rois = self.rpn(im_data, im_info, gt_boxes, gt_ishard, dontcare_areas)
         # print 'res4_feature',res4_features.size()
+	logging.info("rpn finished")
         if self.training:
             roi_data = self.proposal_target_layer(rois, gt_boxes, gt_ishard, dontcare_areas, self.n_classes)
             rois = roi_data[0]
 
+	logging.info("proposal finished")
         # roi pool
         pooled_features = self.roi_pool(res4_features, rois)
+	
+	logging.info("ROI pool finished")
         # print 'pooled_features',pooled_features.size()
-        res5_features = self.res5_features(pooled_features)
+	for param in self.res5_features.parameters():        
+    	    deviceid = param.get_device()	
+	logging.info('"res deviceid {0}"'.format(deviceid))
+	logging.info('device of pooled feature {0}'.format(pooled_features.get_device()))
+	res5_features = self.res5_features(pooled_features)
         # print 'res5_feature',res5_features.size()
+	logging.info("res5 feature finished")
         x = res5_features.view(res5_features.size()[0], -1)
         # print 'res5_feature_view',res5_features.size()
 
+	logging.info("x prepare finished")
         cls_score = self.score_fc(x)
         cls_prob = F.softmax(cls_score)
         bbox_pred = self.bbox_fc(x)
 
+	logging.info("before build loss")
         if self.training:
             self.cross_entropy, self.loss_box = self.build_loss(cls_score, bbox_pred, roi_data)
 
-        return cls_prob, bbox_pred, rois
+        #return cls_prob, bbox_pred, rois
+	logging.info( "return loss")
+        #return self.loss()
+        return self.cross_entropy + self.loss_box * 10
 
     def build_loss(self, cls_score, bbox_pred, roi_data):
         # classification loss
@@ -244,7 +298,8 @@ class FasterRCNN(nn.Module):
 
         ce_weights = torch.ones(cls_score.size()[1])
         ce_weights[0] = float(fg_cnt) / (bg_cnt+1e-4)
-        ce_weights = ce_weights.cuda()
+	deviceid = cls_score.get_device()
+        ce_weights = ce_weights.cuda(deviceid)
         cross_entropy = F.cross_entropy(cls_score, label, weight=ce_weights)
 
         # bounding box regression L1 loss
@@ -274,15 +329,22 @@ class FasterRCNN(nn.Module):
         bbox_inside_weights: (1 x H x W x A, Kx4) 0, 1 masks for the computing loss
         bbox_outside_weights: (1 x H x W x A, Kx4) 0, 1 masks for the computing loss
         """
-        rpn_rois = rpn_rois.data.cpu().numpy()
+#        print "1111111"
+	
+	deviceid = rpn_rois.get_device()
+	rpn_rois = rpn_rois.data.cpu().numpy()
+	print "222"
         rois, labels, bbox_targets, bbox_inside_weights, bbox_outside_weights = \
             proposal_target_layer_py(rpn_rois, gt_boxes, gt_ishard, dontcare_areas, num_classes)
-        # print labels.shape, bbox_targets.shape, bbox_inside_weights.shape
-        rois = network.np_to_variable(rois, is_cuda=True)
-        labels = network.np_to_variable(labels, is_cuda=True, dtype=torch.LongTensor)
-        bbox_targets = network.np_to_variable(bbox_targets, is_cuda=True)
-        bbox_inside_weights = network.np_to_variable(bbox_inside_weights, is_cuda=True)
-        bbox_outside_weights = network.np_to_variable(bbox_outside_weights, is_cuda=True)
+        
+	print labels.shape, bbox_targets.shape, bbox_inside_weights.shape
+	with torch.cuda.device(deviceid):
+            rois = network.np_to_variable(rois, is_cuda=True)
+	    logging.info('"deviceid {0}"'.format(deviceid))
+            labels = network.np_to_variable(labels, is_cuda=True, dtype=torch.LongTensor)
+            bbox_targets = network.np_to_variable(bbox_targets, is_cuda=True)
+            bbox_inside_weights = network.np_to_variable(bbox_inside_weights, is_cuda=True)
+            bbox_outside_weights = network.np_to_variable(bbox_outside_weights, is_cuda=True)
 
         return rois, labels, bbox_targets, bbox_inside_weights, bbox_outside_weights
 
@@ -302,6 +364,7 @@ class FasterRCNN(nn.Module):
         ], dtype=np.float)
         boxes = rois.data.cpu().numpy()[keep, 1:5] / im_info[0][2]
         pred_boxes = bbox_transform_inv(boxes, box_deltas)
+
         if clip:
             pred_boxes = clip_boxes(pred_boxes, im_shape)
 
